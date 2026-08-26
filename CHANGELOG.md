@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.2](https://github.com/terraform-aws-modules/terraform-aws-dms/compare/v2.6.1...v2.6.2) (2026-08-26)
+
+### Bug Fixes
+
+* Update GitHub Actions and pre-commit hook versions ([#100](https://github.com/terraform-aws-modules/terraform-aws-dms/issues/100)) ([6fdd6f8](https://github.com/terraform-aws-modules/terraform-aws-dms/commit/6fdd6f8a1942d762b304e62dc0362892401f664b))
+
 ## [2.6.1](https://github.com/terraform-aws-modules/terraform-aws-dms/compare/v2.6.0...v2.6.1) (2025-10-21)
 
 ### Bug Fixes
