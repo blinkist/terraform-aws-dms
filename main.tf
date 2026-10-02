@@ -6,7 +6,7 @@ locals {
   account_id = data.aws_caller_identity.current.account_id
   dns_suffix = data.aws_partition.current.dns_suffix
   partition  = data.aws_partition.current.partition
-  region     = data.aws_region.current.name
+  region     = data.aws_region.current.region
 
   subnet_group_id = var.create && var.create_repl_subnet_group ? aws_dms_replication_subnet_group.this[0].id : var.repl_instance_subnet_group_id
 }
@@ -257,6 +257,24 @@ resource "aws_dms_endpoint" "this" {
     }
   }
 
+  # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Endpoints.Creating.IAMRDS.html
+  dynamic "mysql_settings" {
+    for_each = length(lookup(each.value, "mysql_settings", [])) > 0 ? [each.value.mysql_settings] : []
+
+    content {
+      after_connect_script              = try(mysql_settings.value.after_connect_script, null)
+      authentication_method             = try(mysql_settings.value.authentication_method, null)
+      clean_source_metadata_on_mismatch = try(mysql_settings.value.clean_source_metadata_on_mismatch, null)
+      events_poll_interval              = try(mysql_settings.value.events_poll_interval, null)
+      execute_timeout                   = try(mysql_settings.value.execute_timeout, null)
+      max_file_size                     = try(mysql_settings.value.max_file_size, null)
+      parallel_load_threads             = try(mysql_settings.value.parallel_load_threads, null)
+      server_timezone                   = try(mysql_settings.value.server_timezone, null)
+      service_access_role_arn           = lookup(mysql_settings.value, "service_access_role_arn", try(mysql_settings.value.authentication_method == "iam", false) ? local.access_iam_role : null)
+      target_db_type                    = try(mysql_settings.value.target_db_type, null)
+    }
+  }
+
   password                = lookup(each.value, "password", null)
   pause_replication_tasks = try(each.value.pause_replication_tasks, null)
   port                    = try(each.value.port, null)
@@ -266,6 +284,7 @@ resource "aws_dms_endpoint" "this" {
     for_each = length(lookup(each.value, "postgres_settings", [])) > 0 ? [each.value.postgres_settings] : []
     content {
       after_connect_script         = try(postgres_settings.value.after_connect_script, null)
+      authentication_method        = try(postgres_settings.value.authentication_method, null)
       babelfish_database_name      = try(postgres_settings.value.babelfish_database_name, null)
       capture_ddls                 = try(postgres_settings.value.capture_ddls, null)
       database_mode                = try(postgres_settings.value.database_mode, null)
@@ -280,6 +299,7 @@ resource "aws_dms_endpoint" "this" {
       map_long_varchar_as          = try(postgres_settings.value.map_long_varchar_as, null)
       max_file_size                = try(postgres_settings.value.max_file_size, null)
       plugin_name                  = try(postgres_settings.value.plugin_name, null)
+      service_access_role_arn      = lookup(postgres_settings.value, "service_access_role_arn", try(postgres_settings.value.authentication_method == "iam", false) ? local.access_iam_role : null)
       slot_name                    = try(postgres_settings.value.slot_name, null)
     }
   }
@@ -582,6 +602,17 @@ data "aws_iam_policy_document" "access" {
       sid       = "SecretsManager"
       actions   = ["secretsmanager:GetSecretValue"]
       resources = var.access_secret_arns
+    }
+  }
+
+  # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Endpoints.Creating.IAMRDS.html
+  dynamic "statement" {
+    for_each = length(var.access_rds_db_user_arns) > 0 ? [1] : []
+
+    content {
+      sid       = "RDSDatabaseAuthentication"
+      actions   = ["rds-db:connect"]
+      resources = var.access_rds_db_user_arns
     }
   }
 

@@ -110,6 +110,48 @@ module "database_migration_service" {
 }
 ```
 
+### IAM database authentication for RDS endpoints
+
+AWS DMS supports IAM database authentication for RDS MySQL, MariaDB, PostgreSQL, and Aurora MySQL/PostgreSQL endpoints when the replication instance runs DMS 3.6.1 or later. Use AWS provider 6.15.0 or later with this module. Enable IAM authentication on the RDS database and grant it to a database user before creating the DMS endpoint. The username is still required; omit the password.
+
+For example, a PostgreSQL target endpoint can use the module's access role (add the subnet group and other resources needed for your migration):
+
+```hcl
+module "dms" {
+  source = "git::https://github.com/your-org/terraform-aws-dms.git"
+
+  repl_instance_engine_version = "3.6.1"
+
+  # Use the DB instance/cluster resource ID, not its identifier or ARN.
+  access_rds_db_user_arns = [
+    "arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABCDEFGHIJKLMNOP/replication_user"
+  ]
+
+  endpoints = {
+    target = {
+      endpoint_id   = "postgres-iam-target"
+      endpoint_type = "target"
+      engine_name   = "aurora-postgresql"
+      database_name = "app"
+      username      = "replication_user"
+      server_name   = "example.cluster-abcdefghijkl.us-east-1.rds.amazonaws.com"
+      port          = 5432
+      ssl_mode      = "require"
+
+      postgres_settings = {
+        authentication_method = "iam"
+      }
+    }
+  }
+}
+```
+
+For MySQL, MariaDB, or Aurora MySQL, use `mysql_settings = { authentication_method = "iam" }`, `ssl_mode = "verify-ca"` or `"verify-full"`, and an RDS CA bundle imported through the module's `certificates` map. Set the endpoint's `certificate_key` to the corresponding map key. PostgreSQL can use `ssl_mode = "require"` without a certificate; `verify-ca` and `verify-full` require one. The role's `rds-db:connect` permission is restricted to the DB user ARNs in `access_rds_db_user_arns`. If you supply an existing role, set `service_access_role_arn` inside `postgres_settings` or `mysql_settings` and grant that role `rds-db:connect` for the same DB user ARN. The role must trust AWS DMS. Do not combine IAM authentication with `password` or `secrets_manager_arn` on the same endpoint.
+
+The database user also needs the normal privileges for its DMS source or target operation. PostgreSQL users need the `rds_iam` role; MySQL and MariaDB users need `AWSAuthenticationPlugin`. AWS RDS does not support IAM authentication for PostgreSQL replication connections, so check that limitation before using this for a PostgreSQL CDC source.
+
+See [AWS DMS IAM authentication setup](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Endpoints.Creating.IAMRDS.html), [RDS IAM database user setup](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html), and [RDS IAM authentication limitations](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html) for details and connection testing.
+
 ### Combinations
 
 Within DMS you can have multiple combinations of resources depending on your use case. For example (not an exhaustive list of possible combinations):
@@ -304,14 +346,14 @@ Examples codified under the [`examples`](https://github.com/terraform-aws-module
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.96 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 6.15.0 |
 | <a name="requirement_time"></a> [time](#requirement\_time) | >= 0.9 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.96 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.15.0 |
 | <a name="provider_time"></a> [time](#provider\_time) | >= 0.9 |
 
 ## Modules
@@ -359,6 +401,7 @@ No modules.
 | <a name="input_access_iam_role_use_name_prefix"></a> [access\_iam\_role\_use\_name\_prefix](#input\_access\_iam\_role\_use\_name\_prefix) | Determines whether the IAM role name (`access_iam_role_name`) is used as a prefix | `bool` | `true` | no |
 | <a name="input_access_iam_statements"></a> [access\_iam\_statements](#input\_access\_iam\_statements) | A map of IAM policy [statements](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document#statement) for custom permission usage | `any` | `{}` | no |
 | <a name="input_access_kms_key_arns"></a> [access\_kms\_key\_arns](#input\_access\_kms\_key\_arns) | A list of KMS key ARNs the access IAM role is permitted to decrypt | `list(string)` | `[]` | no |
+| <a name="input_access_rds_db_user_arns"></a> [access\_rds\_db\_user\_arns](#input\_access\_rds\_db\_user\_arns) | List of RDS DB user ARNs the access IAM role is permitted to connect as using IAM database authentication | `list(string)` | `[]` | no |
 | <a name="input_access_secret_arns"></a> [access\_secret\_arns](#input\_access\_secret\_arns) | A list of SecretManager secret ARNs the access IAM role is permitted to access | `list(string)` | `[]` | no |
 | <a name="input_access_source_s3_bucket_arns"></a> [access\_source\_s3\_bucket\_arns](#input\_access\_source\_s3\_bucket\_arns) | A list of S3 bucket ARNs the access IAM role is permitted to access | `list(string)` | `[]` | no |
 | <a name="input_access_target_dynamodb_table_arns"></a> [access\_target\_dynamodb\_table\_arns](#input\_access\_target\_dynamodb\_table\_arns) | A list of DynamoDB table ARNs the access IAM role is permitted to access | `list(string)` | `[]` | no |
