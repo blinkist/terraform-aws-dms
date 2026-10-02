@@ -328,6 +328,12 @@ variable "access_secret_arns" {
   default     = []
 }
 
+variable "access_rds_db_user_arns" {
+  description = "List of RDS DB user ARNs the access IAM role is permitted to connect as using IAM database authentication"
+  type        = list(string)
+  default     = []
+}
+
 variable "access_source_s3_bucket_arns" {
   description = "A list of S3 bucket ARNs the access IAM role is permitted to access"
   type        = list(string)
